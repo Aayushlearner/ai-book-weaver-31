@@ -79,9 +79,10 @@ export default function ChapterPreview() {
                       <div className="h-1 w-24 gradient-accent rounded-full" />
                     </div>
                     
-                    <div className="text-foreground leading-relaxed whitespace-pre-wrap">
-                      {chapter.content}
-                    </div>
+                    <div
+                      className="text-foreground leading-relaxed prose-headings:text-foreground prose-headings:font-semibold prose-h2:text-2xl prose-h2:mt-8 prose-h2:mb-4 prose-h3:text-xl prose-h3:mt-6 prose-h3:mb-3 prose-p:mb-4 prose-ul:mb-4 prose-li:mb-2"
+                      dangerouslySetInnerHTML={{ __html: chapter.content || '' }}
+                    />
                   </div>
                 </div>
               </TabsContent>

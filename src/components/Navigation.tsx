@@ -2,6 +2,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { BookOpen, Menu, X } from 'lucide-react';
 import { useState } from 'react';
+import { DarkModeToggle } from '@/components/ui/dark-mode-toggle';
 
 export const Navigation = () => {
   const location = useLocation();
@@ -52,13 +53,16 @@ export const Navigation = () => {
             ))}
           </div>
 
-          {/* Mobile Menu Button */}
-          <button
-            className="md:hidden p-2 rounded-lg hover:bg-secondary transition-smooth"
-            onClick={() => setIsOpen(!isOpen)}
-          >
-            {isOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-          </button>
+          {/* Theme Toggle and Mobile Menu */}
+          <div className="flex items-center gap-2">
+            <DarkModeToggle />
+            <button
+              className="md:hidden p-2 rounded-lg hover:bg-secondary transition-smooth"
+              onClick={() => setIsOpen(!isOpen)}
+            >
+              {isOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+            </button>
+          </div>
         </div>
 
         {/* Mobile Navigation */}
