@@ -11,10 +11,12 @@ import os
 import logging
 
 from .groq_provider import GroqProvider
+from .ollama_provider import OllamaProvider
 from .agents import (
     IndexingAgent,
     TOCGeneratorAgent,
     TOCMergerAgent,
+    CritiqueAgent,
     WritingAgent,
     ChapterPlan,
     BookPlan,
@@ -70,10 +72,20 @@ async def plan(req: PlanRequest):
         if req.additional_content:
             combined_context += f"\n\nUSER PROVIDED ADDITIONAL CONTENT:\n{req.additional_content}\n\nPlease incorporate these specific ideas and content into the book structure and chapter planning."
 
-        planner = IndexingAgent(provider)
-        result = planner.plan(req.topic, num_chapters=req.num_chapters, tone=req.tone, toc_context=combined_context)
-        logger.info(f"Plan result: title={result.title}, chapters={len(result.chapters)}")
-        return result
+        # Use multi-agent TOC generation
+        perspectives = ["foundational", "applied", "strategic", "future-oriented"]
+        toc_plans = []
+        for perspective in perspectives:
+            agent = TOCGeneratorAgent(provider, perspective)
+            plan = agent.generate_toc(req.topic, num_chapters=req.num_chapters, tone=req.tone, toc_context=combined_context)
+            toc_plans.append(plan)
+
+        merger = TOCMergerAgent(provider)
+        result = merger.merge_tocs(req.topic, req.num_chapters, req.tone, toc_plans, combined_context)
+        critique = CritiqueAgent(provider)
+        final_result = critique.critique_toc(result, req.topic, req.num_chapters, req.tone, combined_context)
+        logger.info(f"Plan result: title={final_result.title}, chapters={len(final_result.chapters)}")
+        return final_result
     except Exception as e:
         logger.error(f"An unhandled exception occurred in /plan: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"An internal error occurred: {str(e)}")

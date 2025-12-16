@@ -962,6 +962,160 @@ def generate_toc_context(topic: str, max_urls: int = 6, max_sources: int = 4) ->
 # ---------------------------
 # Writing Agent (writes chapters)
 # ---------------------------
+# Critique Agent
+# ---------------------------
+class CritiqueAgent:
+    def __init__(self, provider: GroqProvider) -> None:
+        self.provider = provider
+
+    def critique_toc(
+        self,
+        toc_plan: BookPlan,
+        topic: str,
+        num_chapters: int,
+        tone: str,
+        toc_context: str = "",
+    ) -> BookPlan:
+        # Serialize the TOC
+        toc_text = f"TOC to critique:\nTitle: {toc_plan.title}\n"
+        for j, ch in enumerate(toc_plan.chapters, 1):
+            toc_text += f"{j}. {ch.title} - {ch.summary}\n"
+
+        # System prompt
+        system_prompt = (
+            "You are an expert content critic specializing in analyzing and improving Table of Contents for books. "
+            "You identify weaknesses, redundancies, gaps, and areas for improvement. "
+            "You provide constructive criticism and suggest enhancements to make the TOC more comprehensive, logical, and engaging. "
+            "You strictly return valid JSON only."
+        )
+
+        # User prompt
+        user_template = (
+            "You have received a Table of Contents for a book on '{topic}' with {num_chapters} chapters in '{tone}' tone.\n\n"
+            "ANALYZE THIS TOC:\n{toc_text}\n\n"
+            "CRITIQUE REQUIREMENTS:\n"
+            "- Identify any redundancies, gaps, or logical inconsistencies\n"
+            "- Suggest improvements for chapter titles, summaries, and subtopics\n"
+            "- Ensure the TOC flows logically and covers the topic comprehensively\n"
+            "- Maintain the '{tone}' tone throughout\n"
+            "- Keep exactly {num_chapters} chapters\n\n"
+            "OUTPUT FORMAT:\n"
+            "{{\n"
+            '  "title": "Improved Book Title",\n'
+            '  "chapters": [\n'
+            '    {{"title": "Chapter 1: Improved Title", "summary": "Improved summary", "subtopics": ["Sub1", "Sub2", "Sub3"]}},\n'
+            '    ...\n'
+            '  ]\n'
+            "}}\n\n"
+            "Return ONLY valid JSON."
+        )
+
+        user_msg = user_template.format(topic=topic, num_chapters=num_chapters, tone=tone, toc_text=toc_text)
+
+        # Truncate if too long
+        max_chars = 12000
+        if len(user_msg) > max_chars:
+            user_msg = user_msg[:max_chars] + "\n\n[Content truncated due to length]"
+
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_msg},
+        ]
+
+        # Call model
+        logger.info(f"CritiqueAgent: critiquing TOC for topic='{topic}'")
+        raw = self.provider.complete_messages(messages, temperature=0.3, timeout=120)
+        logger.info(f"CritiqueAgent raw output (truncated): {raw[:800]}")
+
+        data = self._extract_json(raw)
+        if not data:
+            logger.warning("CritiqueAgent: JSON extraction failed; returning original TOC")
+            return toc_plan
+
+        # Parse
+        title = data.get("title") or toc_plan.title
+        chapters: List[ChapterPlan] = []
+
+        if "chapters" in data and isinstance(data["chapters"], list):
+            for ch in data["chapters"][:num_chapters]:
+                if isinstance(ch, dict):
+                    ch_title = ch.get("title") or "Untitled Chapter"
+                    summary = ch.get("summary") or f"Chapter on {topic}."
+                    subtopics = ch.get("subtopics", [])
+                    if not isinstance(subtopics, list):
+                        subtopics = []
+                    chapters.append(ChapterPlan(title=ch_title, summary=summary, subtopics=subtopics))
+
+        # Ensure exact number
+        while len(chapters) < num_chapters:
+            idx = len(chapters) + 1
+            fallback_chapter = self._generate_diverse_fallback_chapter(topic, idx, num_chapters)
+            chapters.append(fallback_chapter)
+        chapters = chapters[:num_chapters]
+
+        return BookPlan(title=title, chapters=chapters)
+
+    def _generate_diverse_fallback_chapter(self, topic: str, chapter_num: int, total_chapters: int) -> ChapterPlan:
+        chapter_themes = {
+            1: ("Foundations and Fundamentals", "Core concepts, basic principles, and foundational knowledge essential for understanding the topic.", ["Introduction", "Basic Concepts", "Key Principles", "Foundational Knowledge"]),
+            2: ("Core Principles and Theory", "Theoretical frameworks, key principles, and conceptual understanding of the subject matter.", ["Theoretical Frameworks", "Core Principles", "Conceptual Models", "Fundamental Theory"]),
+            3: ("Practical Applications", "Real-world implementation, practical techniques, and hands-on approaches to applying the concepts.", ["Implementation Strategies", "Practical Techniques", "Hands-on Examples", "Real-world Applications"]),
+            4: ("Advanced Techniques and Methods", "Sophisticated methods, advanced strategies, and specialized approaches to the topic.", ["Advanced Methods", "Specialized Techniques", "Optimization Strategies", "Expert Approaches"]),
+            5: ("Case Studies and Examples", "Real-world examples, case studies, and practical demonstrations of concepts in action.", ["Case Study Analysis", "Real-world Examples", "Practical Demonstrations", "Success Stories"]),
+            6: ("Challenges and Solutions", "Common challenges, problem-solving approaches, and strategies for overcoming obstacles.", ["Common Challenges", "Problem-solving Techniques", "Solution Strategies", "Overcoming Obstacles"]),
+            7: ("Future Trends and Innovations", "Emerging trends, future developments, and innovative approaches shaping the field.", ["Emerging Trends", "Future Developments", "Innovative Approaches", "Industry Evolution"]),
+            8: ("Implementation and Best Practices", "Practical implementation guides, best practices, and actionable recommendations.", ["Implementation Guides", "Best Practices", "Actionable Recommendations", "Practical Tips"]),
+            9: ("Ethics and Governance", "Ethical considerations, governance frameworks, and responsible practices in the field.", ["Ethical Considerations", "Governance Frameworks", "Responsible Practices", "Compliance Issues"]),
+            10: ("Research and Future Directions", "Current research, future directions, and emerging areas of study.", ["Current Research", "Future Directions", "Emerging Areas", "Research Opportunities"]),
+            11: ("Industry Applications", "Industry-specific applications, sector implementations, and domain-specific use cases.", ["Industry Applications", "Sector Implementations", "Domain Use Cases", "Specialized Applications"]),
+            12: ("Conclusion and Strategic Roadmap", "Summary of key concepts, strategic planning, and long-term roadmaps for success.", ["Key Concepts Summary", "Strategic Planning", "Long-term Roadmaps", "Final Thoughts"])
+        }
+
+        if chapter_num in chapter_themes:
+            theme_title, theme_summary, subtopics = chapter_themes[chapter_num]
+            title = f"Chapter {chapter_num}: {theme_title} in {topic}"
+            summary = f"{theme_summary} This chapter explores {theme_title.lower()} within the context of {topic}."
+        else:
+            advanced_themes = [
+                ("Specialized Applications", "Advanced exploration of specialized applications within the topic.", ["Specialized Techniques", "Advanced Applications", "Expert Insights", "Domain Expertise"]),
+                ("Cutting-Edge Developments", "Latest developments and cutting-edge approaches in the field.", ["Latest Developments", "Cutting-edge Approaches", "Innovation Highlights", "Future Technologies"]),
+                ("Integration and Optimization", "Integration strategies and optimization techniques for better performance.", ["Integration Strategies", "Optimization Techniques", "Performance Enhancement", "System Integration"]),
+                ("Advanced Analytics and Insights", "Advanced analytical methods and deep insights into the topic.", ["Advanced Analytics", "Deep Insights", "Data Analysis", "Strategic Intelligence"]),
+                ("Strategic Implementation", "Strategic approaches to implementing concepts and achieving goals.", ["Strategic Planning", "Implementation Tactics", "Goal Achievement", "Strategic Execution"]),
+                ("Innovation and Transformation", "Innovative ideas and transformative approaches to the field.", ["Innovative Ideas", "Transformative Approaches", "Change Management", "Innovation Strategies"])
+            ]
+            theme_title, theme_summary, subtopics = advanced_themes[(chapter_num - 1) % len(advanced_themes)]
+            title = f"Chapter {chapter_num}: {theme_title} in {topic}"
+            summary = f"{theme_summary}"
+
+        return ChapterPlan(title=title, summary=summary, subtopics=subtopics)
+
+    def _extract_json(self, text: str) -> Optional[dict]:
+        if not text or not isinstance(text, str):
+            return None
+
+        try:
+            return json.loads(text)
+        except Exception:
+            pass
+
+        m = re.search(r"```(?:json)?\s*(\{[\s\S]*\})\s*```", text, re.DOTALL)
+        if m:
+            try:
+                return json.loads(m.group(1))
+            except Exception:
+                pass
+
+        m = re.search(r"\{[\s\S]*\}", text)
+        if m:
+            try:
+                return json.loads(m.group(0))
+            except Exception:
+                pass
+
+        return None
+
+# ---------------------------
 class WritingAgent:
     def __init__(self, provider: GroqProvider) -> None:
         self.provider = provider
@@ -984,8 +1138,9 @@ class WritingAgent:
             user_prompt = (
                 f"{chapter_context}\n\n"
                 f"Chapter Title: {ch.title}\n"
-                f"Summary: {ch.summary}\n\n"
-                f"Write a 1000-1500 word chapter. Start with the chapter title as a large <h1> heading, then use <h2> headings for section titles within the chapter. Avoid markdown. Keep academic quality."
+                f"Summary: {ch.summary}\n"
+                f"Subtopics: {', '.join(ch.subtopics)}\n\n"
+                f"Write a 1000-1500 word chapter. Start with the chapter title as a large <h1> heading. Use the provided subtopics as <h3 style='font-size: 1.4em; font-weight: bold; margin-top: 2em; margin-bottom: 1em;'> section headings within the chapter, ensuring each subtopic becomes a distinct section with relevant content. Add TWO blank lines after each subtopic heading before starting the content paragraph for clear separation. Avoid markdown. Keep academic quality."
             )
             messages = [
                 {"role": "system", "content": writer_system},

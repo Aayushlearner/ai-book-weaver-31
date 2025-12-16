@@ -30,7 +30,7 @@ interface BackendBookContent {
 export const generateToc = async (formData: BookFormData): Promise<Chapter[]> => {
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 minutes timeout
+    const timeoutId = setTimeout(() => controller.abort(), 600000); // 10 minutes timeout for multi-agent TOC generation
 
     const response = await fetch(`${API_BASE_URL}/plan`, {
       method: 'POST',
