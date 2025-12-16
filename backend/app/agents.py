@@ -1,7 +1,6 @@
 # agents.py
-from __future__ import annotations
-from dataclasses import dataclass
 from typing import List, Optional
+from pydantic import BaseModel
 from .groq_provider import GroqProvider
 import json
 import re
@@ -9,7 +8,7 @@ import logging
 import requests
 from bs4 import BeautifulSoup
 import fitz  # PyMuPDF
-from ddgs import DDGS
+from duckduckgo_search import DDGS
 import time
 import os
 import uuid
@@ -21,26 +20,23 @@ logging.basicConfig(level=logging.INFO)
 # ---------------------------
 # Data classes
 # ---------------------------
-@dataclass
-class ChapterPlan:
+class ChapterPlan(BaseModel):
     title: str
     summary: str
+    subtopics: List[str] = []
 
 
-@dataclass
-class BookPlan:
+class BookPlan(BaseModel):
     title: str
     chapters: List[ChapterPlan]
 
 
-@dataclass
-class ChapterContent:
+class ChapterContent(BaseModel):
     title: str
     content: str
 
 
-@dataclass
-class BookContent:
+class BookContent(BaseModel):
     title: str
     chapters: List[ChapterContent]
 
@@ -90,6 +86,8 @@ PLANNER_USER_TMPL = (
     "- Produce exactly {num_chapters} chapters with engaging, action-oriented titles\n"
     "- Each chapter MUST be numbered: 'Chapter 1: [Title]', 'Chapter 2: [Title]', etc.\n"
     "- Write detailed 2-3 sentence summaries that explain the chapter's value and practical focus\n"
+    "- For each chapter, provide 3-5 relevant subtopics that outline the key sections within that chapter\n"
+    "- Ensure subtopics are unique and specific to each chapter, differing significantly between chapters to provide diverse and comprehensive coverage\n"
     "- Ensure logical progression: fundamentals → practical skills → advanced applications → business impact → future trends\n"
     "- Include modern perspectives: AI integration, cloud computing, sustainability, ethics, MLOps, edge computing\n"
     "- Make titles specific and engaging, not generic or academic\n"
@@ -114,8 +112,8 @@ PLANNER_USER_TMPL = (
     "{{\n"
     '  "title": "Engaging Book Title That Captures the Topic\'s Modern Relevance",\n'
     '  "chapters": [\n'
-    '    {{"title": "Chapter 1: Specific, Engaging Chapter Title", "summary": "Detailed 2-3 sentence explanation of what readers will learn, why it matters, and practical applications they can expect"}},'
-    '    {{"title": "Chapter 2: Another Action-Oriented, Specific Title", "summary": "Clear description of the chapter\'s focus, practical value, and how it builds on previous knowledge"}}'
+    '    {{"title": "Chapter 1: Specific, Engaging Chapter Title", "summary": "Detailed 2-3 sentence explanation of what readers will learn, why it matters, and practical applications they can expect", "subtopics": ["Introduction to Core Concepts", "Modern Context and Relevance", "Practical Foundations"]}},\n'
+    '    {{"title": "Chapter 2: Another Action-Oriented, Specific Title", "summary": "Clear description of the chapter\'s focus, practical value, and how it builds on previous knowledge", "subtopics": ["Key Techniques and Tools", "Hands-on Implementation", "Common Pitfalls and Solutions"]}}'
     '  ]\n'
     "}}\n\n"
     "Topic: {topic}\n"
@@ -129,6 +127,8 @@ PLANNER_USER_TMPL_FORMAL = (
     "- Produce exactly {num_chapters} chapters with precise, professional titles\n"
     "- Each chapter MUST be numbered: 'Chapter 1: [Title]', 'Chapter 2: [Title]', etc.\n"
     "- Write detailed 2-3 sentence summaries that articulate the chapter's scholarly contribution and methodological approach\n"
+    "- For each chapter, provide 3-5 relevant subtopics that outline the key sections within that chapter\n"
+    "- CRITICAL: Subtopics MUST be completely unique and specific to each chapter. No overlapping, similar, or repeated subtopics across any chapters. Each chapter's subtopics should be tailored exclusively to its own content and theme, ensuring maximum diversity and avoiding any duplication.\n"
     "- Ensure systematic progression: theoretical foundations → methodological frameworks → empirical applications → critical analysis → scholarly implications\n"
     "- Include rigorous perspectives: theoretical frameworks, methodological rigor, empirical evidence, critical discourse\n"
     "- Make titles precise and authoritative, reflecting academic depth\n"
@@ -153,8 +153,8 @@ PLANNER_USER_TMPL_FORMAL = (
     "{{\n"
     '  "title": "Distinguished Scholarly Title That Establishes Academic Authority",\n'
     '  "chapters": [\n'
-    '    {{"title": "Chapter 1: Precise Scholarly Chapter Title", "summary": "Detailed articulation of the chapter\'s theoretical contribution, methodological approach, and scholarly significance"}},'
-    '    {{"title": "Chapter 2: Another Methodically Structured Title", "summary": "Clear description of the chapter\'s analytical framework, empirical focus, and scholarly advancement"}}'
+    '    {{"title": "Chapter 1: Precise Scholarly Chapter Title", "summary": "Detailed articulation of the chapter\'s theoretical contribution, methodological approach, and scholarly significance", "subtopics": ["Historical Context and Evolution", "Core Theoretical Frameworks", "Fundamental Principles"]}},\n'
+    '    {{"title": "Chapter 2: Another Methodically Structured Title", "summary": "Clear description of the chapter\'s analytical framework, empirical focus, and scholarly advancement", "subtopics": ["Methodological Frameworks", "Analytical Approaches", "Research Methodologies"]}}'
     '  ]\n'
     "}}\n\n"
     "Topic: {topic}\n"
@@ -167,6 +167,7 @@ PLANNER_USER_TMPL_ACADEMIC = (
     "- Output must resemble a professional textbook-style TOC with PARTS, CHAPTERS, and SECTIONS.\n"
     "- Use hierarchical numbering (1, 1.1, 1.1.1) for chapters and subtopics.\n"
     "- Organize chapters under PART headings such as 'PART I: FOUNDATIONS' or 'PART II: APPLICATIONS'.\n"
+    "- CRITICAL: Sections (subtopics) MUST be completely unique and specific to each chapter. No overlapping, similar, or repeated sections across any chapters. Each chapter's sections should be tailored exclusively to its own content and theme, ensuring maximum diversity and avoiding any duplication.\n"
     "- Return ONLY valid JSON. Use the example schema below and adapt to {topic}.\n\n"
     'EXAMPLE SCHEMA:\n'
     '{{\n'
@@ -184,9 +185,401 @@ PLANNER_USER_TMPL_ACADEMIC = (
 )
 
 PLANNER_USER_TMPL_STORYTELLING = (
-    "Generate a compelling, narrative-driven Table of Contents for a story-based book on {topic}. "
-    "Return ONLY valid JSON with keys: title and chapters (title & summary)."
+    "Generate a compelling, narrative-driven Table of Contents for a story-based book on {topic}.\n\n"
+    "CRITICAL REQUIREMENTS:\n"
+    "- Create an engaging, story-like book title that draws readers in\n"
+    "- Produce exactly {num_chapters} chapters with narrative, story-driven titles\n"
+    "- Each chapter MUST be numbered: 'Chapter 1: [Title]', 'Chapter 2: [Title]', etc.\n"
+    "- Write engaging 2-3 sentence summaries that build narrative tension and emotional connection\n"
+    "- For each chapter, provide 3-5 relevant subtopics that outline the key story beats or sections within that chapter\n"
+    "- CRITICAL: Subtopics MUST be completely unique and specific to each chapter. No overlapping, similar, or repeated subtopics across any chapters. Each chapter's subtopics should be tailored exclusively to its own content and theme, ensuring maximum diversity and avoiding any duplication.\n"
+    "- Ensure narrative progression: setup → rising action → climax → falling action → resolution\n"
+    "- Focus on human elements, real stories, and transformative journeys\n\n"
+    "NARRATIVE CHAPTER STRUCTURE:\n"
+    "1. The Beginning: Setting the scene and introducing characters\n"
+    "2. The Journey: Challenges, discoveries, and personal growth\n"
+    "3. The Turning Point: Key moments of change and realization\n"
+    "4. The Resolution: Outcomes, lessons learned, and new beginnings\n"
+    "5. The Legacy: Lasting impact and future implications\n\n"
+    "OUTPUT FORMAT:\n"
+    "{{\n"
+    '  "title": "Engaging Narrative Title That Captures the Story\'s Essence",\n'
+    '  "chapters": [\n'
+    '    {{"title": "Chapter 1: Story-Driven Chapter Title", "summary": "Engaging summary that builds narrative tension and emotional connection", "subtopics": ["Setting the Scene", "Introducing Characters", "Initial Challenges"]}},\n'
+    '    {{"title": "Chapter 2: Another Narrative Chapter Title", "summary": "Clear description of the chapter\'s story arc and emotional journey", "subtopics": ["Rising Action", "Key Discoveries", "Personal Growth"]}}'
+    '  ]\n'
+    "}}\n\n"
+    "Topic: {topic}\n"
+    "Return ONLY valid JSON."
 )
+
+
+# ---------------------------
+# TOCGeneratorAgent (generates TOC with specific perspective)
+# ---------------------------
+class TOCGeneratorAgent:
+    def __init__(self, provider: GroqProvider, perspective: str) -> None:
+        self.provider = provider
+        self.perspective = perspective
+
+    def generate_toc(
+        self,
+        topic: str,
+        num_chapters: int = 8,
+        tone: str = "casual",
+        toc_context: str = "",
+    ) -> BookPlan:
+        """
+        Generate a BookPlan with a specific perspective.
+        Perspectives: foundational, applied, strategic, future-oriented
+        """
+
+        # Select prompts based on tone
+        if tone == "formal":
+            system_prompt = PLANNER_SYSTEM_FORMAL
+            user_template = PLANNER_USER_TMPL_FORMAL
+        elif tone == "academic":
+            system_prompt = PLANNER_SYSTEM_ACADEMIC
+            user_template = PLANNER_USER_TMPL_ACADEMIC
+        elif tone == "storytelling":
+            system_prompt = PLANNER_SYSTEM_STORYTELLING
+            user_template = PLANNER_USER_TMPL_STORYTELLING
+        else:  # casual
+            system_prompt = PLANNER_SYSTEM
+            user_template = PLANNER_USER_TMPL
+
+        # Add perspective instruction
+        perspective_instructions = {
+            "foundational": "Focus on core concepts, basic principles, and fundamental knowledge. Emphasize building strong foundations for understanding the topic.",
+            "applied": "Focus on practical applications, real-world implementations, and hands-on techniques. Emphasize actionable insights and industry use cases.",
+            "strategic": "Focus on high-level strategy, business impact, organizational transformation, and long-term planning. Emphasize ROI and competitive advantage.",
+            "future-oriented": "Focus on emerging trends, future developments, innovations, and predictions. Emphasize cutting-edge technologies and forward-thinking approaches."
+        }
+
+        perspective_note = perspective_instructions.get(self.perspective, "")
+
+        # Truncate context
+        max_context_chars = 8000
+        if toc_context and len(toc_context) > max_context_chars:
+            logger.info(f"Truncating toc_context from {len(toc_context)} to {max_context_chars} chars")
+            toc_context = toc_context[:max_context_chars] + "\n...[truncated]"
+
+        # Compose messages
+        messages = [
+            {"role": "system", "content": system_prompt},
+        ]
+
+        if toc_context:
+            messages.append(
+                {
+                    "role": "assistant",
+                    "content": f"REFERENCE TOC EXAMPLES (analyze structure, numbering, and phrasing):\n\n{toc_context}",
+                }
+            )
+
+        user_msg = user_template.format(topic=topic, num_chapters=num_chapters)
+        if perspective_note:
+            user_msg += f"\n\nPERSPECTIVE FOCUS: {perspective_note}"
+
+        messages.append({"role": "user", "content": user_msg})
+
+        # Call model
+        logger.info(f"TOCGeneratorAgent ({self.perspective}): sending planning request for topic='{topic}' (tone={tone})")
+        raw = self.provider.complete_messages(messages, temperature=0.35, timeout=120)
+        logger.info(f"TOCGeneratorAgent ({self.perspective}) raw output (truncated): {raw[:800]}")
+
+        data = self._extract_json(raw)
+        if not data:
+            logger.warning(f"TOCGeneratorAgent ({self.perspective}): JSON extraction failed; falling back to safe plan")
+            return self._fallback_plan(topic, num_chapters, tone)
+
+        # Parse structured response
+        title = data.get("title") or f"The Complete Guide to {topic}"
+        chapters: List[ChapterPlan] = []
+
+        if "parts" in data and isinstance(data["parts"], list):
+            for part_idx, part in enumerate(data["parts"]):
+                for ch_idx, ch in enumerate(part.get("chapters", [])):
+                    ch_title = ch.get("chapter_title") or ch.get("title") or "Untitled Chapter"
+                    sections = ch.get("sections") or []
+                    subtopics = []
+                    if sections:
+                        sec_titles = []
+                        for i, s in enumerate(sections[:4], 1):
+                            if isinstance(s, dict):
+                                title_sec = s.get("section_title") or s.get("title")
+                                if title_sec:
+                                    sec_titles.append(f"{ch.get('chapter_number', str(len(chapters)+1))}.{i} {title_sec}")
+                                    subtopics.append(title_sec)
+                        summary = "Includes sections: " + ", ".join(sec_titles)
+                    else:
+                        summary = f"Explores theoretical and applied aspects of {topic}."
+                    chapters.append(ChapterPlan(title=ch_title, summary=summary, subtopics=subtopics))
+        elif "chapters" in data and isinstance(data["chapters"], list):
+            for ch in data["chapters"][:num_chapters]:
+                if isinstance(ch, dict):
+                    ch_title = ch.get("title") or ch.get("chapter_title") or "Untitled Chapter"
+                    summary = ch.get("summary") or ch.get("description") or f"Important topics related to {topic}."
+                    subtopics = ch.get("subtopics", [])
+                    if not isinstance(subtopics, list):
+                        subtopics = []
+                    chapters.append(ChapterPlan(title=f"Chapter {ch.get('chapter_number', str(len(chapters)+1))}: {ch_title}", summary=summary, subtopics=subtopics))
+                else:
+                    chapters.append(ChapterPlan(title=str(ch), summary=f"Important concepts related to {topic}."))
+
+        # Ensure exact number of chapters
+        while len(chapters) < num_chapters:
+            idx = len(chapters) + 1
+            fallback_chapter = self._generate_diverse_fallback_chapter(topic, idx, num_chapters)
+            chapters.append(fallback_chapter)
+        chapters = chapters[:num_chapters]
+
+        return BookPlan(title=title, chapters=chapters)
+
+    def _generate_diverse_fallback_chapter(self, topic: str, chapter_num: int, total_chapters: int) -> ChapterPlan:
+        # Same as in IndexingAgent
+        chapter_themes = {
+            1: ("Foundations and Fundamentals", "Core concepts, basic principles, and foundational knowledge essential for understanding the topic.", ["Introduction", "Basic Concepts", "Key Principles", "Foundational Knowledge"]),
+            2: ("Core Principles and Theory", "Theoretical frameworks, key principles, and conceptual understanding of the subject matter.", ["Theoretical Frameworks", "Core Principles", "Conceptual Models", "Fundamental Theory"]),
+            3: ("Practical Applications", "Real-world implementation, practical techniques, and hands-on approaches to applying the concepts.", ["Implementation Strategies", "Practical Techniques", "Hands-on Examples", "Real-world Applications"]),
+            4: ("Advanced Techniques and Methods", "Sophisticated methods, advanced strategies, and specialized approaches to the topic.", ["Advanced Methods", "Specialized Techniques", "Optimization Strategies", "Expert Approaches"]),
+            5: ("Case Studies and Examples", "Real-world examples, case studies, and practical demonstrations of concepts in action.", ["Case Study Analysis", "Real-world Examples", "Practical Demonstrations", "Success Stories"]),
+            6: ("Challenges and Solutions", "Common challenges, problem-solving approaches, and strategies for overcoming obstacles.", ["Common Challenges", "Problem-solving Techniques", "Solution Strategies", "Overcoming Obstacles"]),
+            7: ("Future Trends and Innovations", "Emerging trends, future developments, and innovative approaches shaping the field.", ["Emerging Trends", "Future Developments", "Innovative Approaches", "Industry Evolution"]),
+            8: ("Implementation and Best Practices", "Practical implementation guides, best practices, and actionable recommendations.", ["Implementation Guides", "Best Practices", "Actionable Recommendations", "Practical Tips"]),
+            9: ("Ethics and Governance", "Ethical considerations, governance frameworks, and responsible practices in the field.", ["Ethical Considerations", "Governance Frameworks", "Responsible Practices", "Compliance Issues"]),
+            10: ("Research and Future Directions", "Current research, future directions, and emerging areas of study.", ["Current Research", "Future Directions", "Emerging Areas", "Research Opportunities"]),
+            11: ("Industry Applications", "Industry-specific applications, sector implementations, and domain-specific use cases.", ["Industry Applications", "Sector Implementations", "Domain Use Cases", "Specialized Applications"]),
+            12: ("Conclusion and Strategic Roadmap", "Summary of key concepts, strategic planning, and long-term roadmaps for success.", ["Key Concepts Summary", "Strategic Planning", "Long-term Roadmaps", "Final Thoughts"])
+        }
+
+        if chapter_num in chapter_themes:
+            theme_title, theme_summary, subtopics = chapter_themes[chapter_num]
+            title = f"Chapter {chapter_num}: {theme_title} in {topic}"
+            summary = f"{theme_summary} This chapter explores {theme_title.lower()} within the context of {topic}."
+        else:
+            advanced_themes = [
+                ("Specialized Applications", "Advanced exploration of specialized applications within the topic.", ["Specialized Techniques", "Advanced Applications", "Expert Insights", "Domain Expertise"]),
+                ("Cutting-Edge Developments", "Latest developments and cutting-edge approaches in the field.", ["Latest Developments", "Cutting-edge Approaches", "Innovation Highlights", "Future Technologies"]),
+                ("Integration and Optimization", "Integration strategies and optimization techniques for better performance.", ["Integration Strategies", "Optimization Techniques", "Performance Enhancement", "System Integration"]),
+                ("Advanced Analytics and Insights", "Advanced analytical methods and deep insights into the topic.", ["Advanced Analytics", "Deep Insights", "Data Analysis", "Strategic Intelligence"]),
+                ("Strategic Implementation", "Strategic approaches to implementing concepts and achieving goals.", ["Strategic Planning", "Implementation Tactics", "Goal Achievement", "Strategic Execution"]),
+                ("Innovation and Transformation", "Innovative ideas and transformative approaches to the field.", ["Innovative Ideas", "Transformative Approaches", "Change Management", "Innovation Strategies"])
+            ]
+            theme_title, theme_summary, subtopics = advanced_themes[(chapter_num - 1) % len(advanced_themes)]
+            title = f"Chapter {chapter_num}: {theme_title} in {topic}"
+            summary = f"{theme_summary}"
+
+        return ChapterPlan(title=title, summary=summary, subtopics=subtopics)
+
+    def _extract_json(self, text: str) -> Optional[dict]:
+        # Same as in IndexingAgent
+        if not text or not isinstance(text, str):
+            return None
+
+        try:
+            return json.loads(text)
+        except Exception:
+            pass
+
+        m = re.search(r"```(?:json)?\s*(\{[\s\S]*\})\s*```", text, re.DOTALL)
+        if m:
+            try:
+                return json.loads(m.group(1))
+            except Exception:
+                pass
+
+        m = re.search(r"\{[\s\S]*\}", text)
+        if m:
+            try:
+                return json.loads(m.group(0))
+            except Exception:
+                pass
+
+        return None
+
+    def _fallback_plan(self, topic: str, num_chapters: int, tone: str = "casual") -> BookPlan:
+        title = f"The Complete Guide to {topic}"
+        fallback_chapters = []
+        for i in range(1, num_chapters + 1):
+            fallback_chapter = self._generate_diverse_fallback_chapter(topic, i, num_chapters)
+            fallback_chapters.append(fallback_chapter)
+        return BookPlan(title=title, chapters=fallback_chapters)
+
+
+# ---------------------------
+# TOCMergerAgent (merges multiple TOCs into best one)
+# ---------------------------
+class TOCMergerAgent:
+    def __init__(self, provider: GroqProvider) -> None:
+        self.provider = provider
+
+    def merge_tocs(
+        self,
+        topic: str,
+        num_chapters: int,
+        tone: str,
+        toc_plans: List[BookPlan],
+        toc_context: str = "",
+    ) -> BookPlan:
+        """
+        Merge multiple BookPlans into the best single BookPlan.
+        """
+
+        # Serialize the TOC plans
+        toc_texts = []
+        for i, plan in enumerate(toc_plans):
+            toc_text = f"TOC {i+1} (Perspective: {getattr(plan, '_perspective', 'unknown')}):\nTitle: {plan.title}\n"
+            for j, ch in enumerate(plan.chapters, 1):
+                toc_text += f"{j}. {ch.title} - {ch.summary}\n"
+            toc_texts.append(toc_text)
+
+        combined_tocs = "\n\n".join(toc_texts)
+
+        # System prompt for merger
+        system_prompt = (
+            "You are an expert content strategist specializing in synthesizing multiple perspectives into cohesive, high-quality book outlines. "
+            "You analyze diverse TOC proposals, identify the strongest elements from each, and create a unified, superior Table of Contents. "
+            "You ensure logical flow, eliminate redundancies, and maximize value for readers. "
+            "You strictly return valid JSON only."
+        )
+
+        # User prompt
+        user_template = (
+            "You have received multiple Table of Contents proposals for a book on '{topic}' with {num_chapters} chapters in '{tone}' tone.\n\n"
+            "ANALYZE EACH TOC:\n{combined_tocs}\n\n"
+            "MERGE REQUIREMENTS:\n"
+            "- Create a single, cohesive book title that captures the best of all proposals\n"
+            "- Select and combine the strongest chapters from all TOCs (exactly {num_chapters} chapters)\n"
+            "- Ensure logical progression and eliminate duplicates\n"
+            "- For each chapter, provide a compelling title, detailed summary, and 3-5 subtopics\n"
+            "- Maintain the '{tone}' tone throughout\n"
+            "- Focus on unique value and comprehensive coverage\n\n"
+            "OUTPUT FORMAT:\n"
+            "{{\n"
+            '  "title": "Merged Book Title",\n'
+            '  "chapters": [\n'
+            '    {{"title": "Chapter 1: Title", "summary": "Detailed summary", "subtopics": ["Sub1", "Sub2", "Sub3"]}},\n'
+            '    ...\n'
+            '  ]\n'
+            "}}\n\n"
+            "Return ONLY valid JSON."
+        )
+
+        user_msg = user_template.format(topic=topic, num_chapters=num_chapters, tone=tone, combined_tocs=combined_tocs)
+
+        # Truncate if too long
+        max_chars = 12000
+        if len(user_msg) > max_chars:
+            user_msg = user_msg[:max_chars] + "\n\n[Content truncated due to length]"
+
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_msg},
+        ]
+
+        # Call model
+        logger.info(f"TOCMergerAgent: merging {len(toc_plans)} TOCs for topic='{topic}'")
+        raw = self.provider.complete_messages(messages, temperature=0.3, timeout=120)
+        logger.info(f"TOCMergerAgent raw output (truncated): {raw[:800]}")
+
+        data = self._extract_json(raw)
+        if not data:
+            logger.warning("TOCMergerAgent: JSON extraction failed; using first TOC as fallback")
+            return toc_plans[0] if toc_plans else self._fallback_plan(topic, num_chapters, tone)
+
+        # Parse
+        title = data.get("title") or toc_plans[0].title
+        chapters: List[ChapterPlan] = []
+
+        if "chapters" in data and isinstance(data["chapters"], list):
+            for ch in data["chapters"][:num_chapters]:
+                if isinstance(ch, dict):
+                    ch_title = ch.get("title") or "Untitled Chapter"
+                    summary = ch.get("summary") or f"Chapter on {topic}."
+                    subtopics = ch.get("subtopics", [])
+                    if not isinstance(subtopics, list):
+                        subtopics = []
+                    chapters.append(ChapterPlan(title=ch_title, summary=summary, subtopics=subtopics))
+
+        # Ensure exact number
+        while len(chapters) < num_chapters:
+            idx = len(chapters) + 1
+            fallback_chapter = self._generate_diverse_fallback_chapter(topic, idx, num_chapters)
+            chapters.append(fallback_chapter)
+        chapters = chapters[:num_chapters]
+
+        return BookPlan(title=title, chapters=chapters)
+
+    def _generate_diverse_fallback_chapter(self, topic: str, chapter_num: int, total_chapters: int) -> ChapterPlan:
+        # Same as above
+        chapter_themes = {
+            1: ("Foundations and Fundamentals", "Core concepts, basic principles, and foundational knowledge essential for understanding the topic.", ["Introduction", "Basic Concepts", "Key Principles", "Foundational Knowledge"]),
+            2: ("Core Principles and Theory", "Theoretical frameworks, key principles, and conceptual understanding of the subject matter.", ["Theoretical Frameworks", "Core Principles", "Conceptual Models", "Fundamental Theory"]),
+            3: ("Practical Applications", "Real-world implementation, practical techniques, and hands-on approaches to applying the concepts.", ["Implementation Strategies", "Practical Techniques", "Hands-on Examples", "Real-world Applications"]),
+            4: ("Advanced Techniques and Methods", "Sophisticated methods, advanced strategies, and specialized approaches to the topic.", ["Advanced Methods", "Specialized Techniques", "Optimization Strategies", "Expert Approaches"]),
+            5: ("Case Studies and Examples", "Real-world examples, case studies, and practical demonstrations of concepts in action.", ["Case Study Analysis", "Real-world Examples", "Practical Demonstrations", "Success Stories"]),
+            6: ("Challenges and Solutions", "Common challenges, problem-solving approaches, and strategies for overcoming obstacles.", ["Common Challenges", "Problem-solving Techniques", "Solution Strategies", "Overcoming Obstacles"]),
+            7: ("Future Trends and Innovations", "Emerging trends, future developments, and innovative approaches shaping the field.", ["Emerging Trends", "Future Developments", "Innovative Approaches", "Industry Evolution"]),
+            8: ("Implementation and Best Practices", "Practical implementation guides, best practices, and actionable recommendations.", ["Implementation Guides", "Best Practices", "Actionable Recommendations", "Practical Tips"]),
+            9: ("Ethics and Governance", "Ethical considerations, governance frameworks, and responsible practices in the field.", ["Ethical Considerations", "Governance Frameworks", "Responsible Practices", "Compliance Issues"]),
+            10: ("Research and Future Directions", "Current research, future directions, and emerging areas of study.", ["Current Research", "Future Directions", "Emerging Areas", "Research Opportunities"]),
+            11: ("Industry Applications", "Industry-specific applications, sector implementations, and domain-specific use cases.", ["Industry Applications", "Sector Implementations", "Domain Use Cases", "Specialized Applications"]),
+            12: ("Conclusion and Strategic Roadmap", "Summary of key concepts, strategic planning, and long-term roadmaps for success.", ["Key Concepts Summary", "Strategic Planning", "Long-term Roadmaps", "Final Thoughts"])
+        }
+
+        if chapter_num in chapter_themes:
+            theme_title, theme_summary, subtopics = chapter_themes[chapter_num]
+            title = f"Chapter {chapter_num}: {theme_title} in {topic}"
+            summary = f"{theme_summary} This chapter explores {theme_title.lower()} within the context of {topic}."
+        else:
+            advanced_themes = [
+                ("Specialized Applications", "Advanced exploration of specialized applications within the topic.", ["Specialized Techniques", "Advanced Applications", "Expert Insights", "Domain Expertise"]),
+                ("Cutting-Edge Developments", "Latest developments and cutting-edge approaches in the field.", ["Latest Developments", "Cutting-edge Approaches", "Innovation Highlights", "Future Technologies"]),
+                ("Integration and Optimization", "Integration strategies and optimization techniques for better performance.", ["Integration Strategies", "Optimization Techniques", "Performance Enhancement", "System Integration"]),
+                ("Advanced Analytics and Insights", "Advanced analytical methods and deep insights into the topic.", ["Advanced Analytics", "Deep Insights", "Data Analysis", "Strategic Intelligence"]),
+                ("Strategic Implementation", "Strategic approaches to implementing concepts and achieving goals.", ["Strategic Planning", "Implementation Tactics", "Goal Achievement", "Strategic Execution"]),
+                ("Innovation and Transformation", "Innovative ideas and transformative approaches to the field.", ["Innovative Ideas", "Transformative Approaches", "Change Management", "Innovation Strategies"])
+            ]
+            theme_title, theme_summary, subtopics = advanced_themes[(chapter_num - 1) % len(advanced_themes)]
+            title = f"Chapter {chapter_num}: {theme_title} in {topic}"
+            summary = f"{theme_summary}"
+
+        return ChapterPlan(title=title, summary=summary, subtopics=subtopics)
+
+    def _extract_json(self, text: str) -> Optional[dict]:
+        # Same
+        if not text or not isinstance(text, str):
+            return None
+
+        try:
+            return json.loads(text)
+        except Exception:
+            pass
+
+        m = re.search(r"```(?:json)?\s*(\{[\s\S]*\})\s*```", text, re.DOTALL)
+        if m:
+            try:
+                return json.loads(m.group(1))
+            except Exception:
+                pass
+
+        m = re.search(r"\{[\s\S]*\}", text)
+        if m:
+            try:
+                return json.loads(m.group(0))
+            except Exception:
+                pass
+
+        return None
+
+    def _fallback_plan(self, topic: str, num_chapters: int, tone: str = "casual") -> BookPlan:
+        title = f"The Complete Guide to {topic}"
+        fallback_chapters = []
+        for i in range(1, num_chapters + 1):
+            fallback_chapter = self._generate_diverse_fallback_chapter(topic, i, num_chapters)
+            fallback_chapters.append(fallback_chapter)
+        return BookPlan(title=title, chapters=fallback_chapters)
 
 
 # ---------------------------
@@ -247,7 +640,7 @@ class IndexingAgent:
 
         # Call model
         logger.info(f"IndexingAgent: sending planning request for topic='{topic}' (tone={tone})")
-        raw = self.provider.complete_messages(messages, temperature=0.35, timeout=30)
+        raw = self.provider.complete_messages(messages, temperature=0.35, timeout=120)
         logger.info(f"IndexingAgent raw output (truncated): {raw[:800]}")
 
         data = self._extract_json(raw)
@@ -265,6 +658,7 @@ class IndexingAgent:
                 for ch_idx, ch in enumerate(part.get("chapters", [])):
                     ch_title = ch.get("chapter_title") or ch.get("title") or "Untitled Chapter"
                     sections = ch.get("sections") or []
+                    subtopics = []
                     if sections:
                         # Build a short summary from first few sections with numbering
                         sec_titles = []
@@ -273,28 +667,73 @@ class IndexingAgent:
                                 title = s.get("section_title") or s.get("title")
                                 if title:
                                     sec_titles.append(f"{ch.get('chapter_number', str(len(chapters)+1))}.{i} {title}")
+                                    subtopics.append(title)
                         summary = "Includes sections: " + ", ".join(sec_titles)
                     else:
                         summary = f"Explores theoretical and applied aspects of {topic}."
-                    chapters.append(ChapterPlan(title=ch_title, summary=summary))
+                    chapters.append(ChapterPlan(title=ch_title, summary=summary, subtopics=subtopics))
         elif "chapters" in data and isinstance(data["chapters"], list):
             for ch in data["chapters"][:num_chapters]:
                 if isinstance(ch, dict):
                     ch_title = ch.get("title") or ch.get("chapter_title") or "Untitled Chapter"
                     summary = ch.get("summary") or ch.get("description") or f"Important topics related to {topic}."
-                    chapters.append(ChapterPlan(title=f"Chapter {ch.get('chapter_number', str(len(chapters)+1))}: {ch_title}", summary=summary))
+                    subtopics = ch.get("subtopics", [])
+                    if not isinstance(subtopics, list):
+                        subtopics = []
+                    chapters.append(ChapterPlan(title=f"Chapter {ch.get('chapter_number', str(len(chapters)+1))}: {ch_title}", summary=summary, subtopics=subtopics))
                 else:
-                    chapters.append(ChapterPlan(title=str(ch), summary=f"Important concepts related to {topic}"))
+                    chapters.append(ChapterPlan(title=str(ch), summary=f"Important concepts related to {topic}."))
         else:
             logger.warning("IndexingAgent: no recognized 'parts' or 'chapters' in model output")
 
-        # Ensure exact number of chapters requested
+        # Ensure exact number of chapters requested with diverse fallback titles
         while len(chapters) < num_chapters:
             idx = len(chapters) + 1
-            chapters.append(ChapterPlan(title=f"Chapter {idx}: Advanced Topics in {topic}", summary=f"Further exploration of {topic}."))
+            fallback_chapter = self._generate_diverse_fallback_chapter(topic, idx, num_chapters)
+            chapters.append(fallback_chapter)
         chapters = chapters[:num_chapters]
 
         return BookPlan(title=title, chapters=chapters)
+
+    def _generate_diverse_fallback_chapter(self, topic: str, chapter_num: int, total_chapters: int) -> ChapterPlan:
+        """Generate diverse fallback chapter titles, summaries, and subtopics based on topic and position."""
+
+        # Define chapter themes based on position in book
+        chapter_themes = {
+            1: ("Foundations and Fundamentals", "Core concepts, basic principles, and foundational knowledge essential for understanding the topic.", ["Introduction", "Basic Concepts", "Key Principles", "Foundational Knowledge"]),
+            2: ("Core Principles and Theory", "Theoretical frameworks, key principles, and conceptual understanding of the subject matter.", ["Theoretical Frameworks", "Core Principles", "Conceptual Models", "Fundamental Theory"]),
+            3: ("Practical Applications", "Real-world implementation, practical techniques, and hands-on approaches to applying the concepts.", ["Implementation Strategies", "Practical Techniques", "Hands-on Examples", "Real-world Applications"]),
+            4: ("Advanced Techniques and Methods", "Sophisticated methods, advanced strategies, and specialized approaches to the topic.", ["Advanced Methods", "Specialized Techniques", "Optimization Strategies", "Expert Approaches"]),
+            5: ("Case Studies and Examples", "Real-world examples, case studies, and practical demonstrations of concepts in action.", ["Case Study Analysis", "Real-world Examples", "Practical Demonstrations", "Success Stories"]),
+            6: ("Challenges and Solutions", "Common challenges, problem-solving approaches, and strategies for overcoming obstacles.", ["Common Challenges", "Problem-solving Techniques", "Solution Strategies", "Overcoming Obstacles"]),
+            7: ("Future Trends and Innovations", "Emerging trends, future developments, and innovative approaches shaping the field.", ["Emerging Trends", "Future Developments", "Innovative Approaches", "Industry Evolution"]),
+            8: ("Implementation and Best Practices", "Practical implementation guides, best practices, and actionable recommendations.", ["Implementation Guides", "Best Practices", "Actionable Recommendations", "Practical Tips"]),
+            9: ("Ethics and Governance", "Ethical considerations, governance frameworks, and responsible practices in the field.", ["Ethical Considerations", "Governance Frameworks", "Responsible Practices", "Compliance Issues"]),
+            10: ("Research and Future Directions", "Current research, future directions, and emerging areas of study.", ["Current Research", "Future Directions", "Emerging Areas", "Research Opportunities"]),
+            11: ("Industry Applications", "Industry-specific applications, sector implementations, and domain-specific use cases.", ["Industry Applications", "Sector Implementations", "Domain Use Cases", "Specialized Applications"]),
+            12: ("Conclusion and Strategic Roadmap", "Summary of key concepts, strategic planning, and long-term roadmaps for success.", ["Key Concepts Summary", "Strategic Planning", "Long-term Roadmaps", "Final Thoughts"])
+        }
+
+        # Get theme for this chapter number, or use a generic advanced topic
+        if chapter_num in chapter_themes:
+            theme_title, theme_summary, subtopics = chapter_themes[chapter_num]
+            title = f"Chapter {chapter_num}: {theme_title} in {topic}"
+            summary = f"{theme_summary} This chapter explores {theme_title.lower()} within the context of {topic}."
+        else:
+            # For chapters beyond our predefined themes
+            advanced_themes = [
+                ("Specialized Applications", "Advanced exploration of specialized applications within the topic.", ["Specialized Techniques", "Advanced Applications", "Expert Insights", "Domain Expertise"]),
+                ("Cutting-Edge Developments", "Latest developments and cutting-edge approaches in the field.", ["Latest Developments", "Cutting-edge Approaches", "Innovation Highlights", "Future Technologies"]),
+                ("Integration and Optimization", "Integration strategies and optimization techniques for better performance.", ["Integration Strategies", "Optimization Techniques", "Performance Enhancement", "System Integration"]),
+                ("Advanced Analytics and Insights", "Advanced analytical methods and deep insights into the topic.", ["Advanced Analytics", "Deep Insights", "Data Analysis", "Strategic Intelligence"]),
+                ("Strategic Implementation", "Strategic approaches to implementing concepts and achieving goals.", ["Strategic Planning", "Implementation Tactics", "Goal Achievement", "Strategic Execution"]),
+                ("Innovation and Transformation", "Innovative ideas and transformative approaches to the field.", ["Innovative Ideas", "Transformative Approaches", "Change Management", "Innovation Strategies"])
+            ]
+            theme_title, theme_summary, subtopics = advanced_themes[(chapter_num - 1) % len(advanced_themes)]
+            title = f"Chapter {chapter_num}: {theme_title} in {topic}"
+            summary = f"{theme_summary}"
+
+        return ChapterPlan(title=title, summary=summary, subtopics=subtopics)
 
     def _extract_json(self, text: str) -> Optional[dict]:
         """Attempt multiple strategies to extract JSON from model output."""
@@ -328,16 +767,10 @@ class IndexingAgent:
     def _fallback_plan(self, topic: str, num_chapters: int, tone: str = "casual") -> BookPlan:
         """Return a safe fallback BookPlan when LLM output can't be parsed."""
         title = f"The Complete Guide to {topic}"
-        fallback_chapters = [
-            ChapterPlan(title=f"Chapter 1: Foundations of {topic}", summary="Introductory concepts and theoretical background."),
-            ChapterPlan(title=f"Chapter 2: Core Frameworks and Models", summary="Detailed explanation of central models and architectures."),
-            ChapterPlan(title=f"Chapter 3: Implementation and Best Practices", summary="Practical guidance and deployment strategies."),
-            ChapterPlan(title=f"Chapter 4: Case Studies", summary="Real-world examples and their outcomes."),
-            ChapterPlan(title=f"Chapter 5: Scaling and Optimization", summary="Techniques for improving performance at scale."),
-            ChapterPlan(title=f"Chapter 6: Ethics, Governance and Compliance", summary="Responsible approaches and governance."),
-            ChapterPlan(title=f"Chapter 7: Future Directions", summary="Emerging trends and next steps."),
-            ChapterPlan(title=f"Chapter 8: Practical Roadmap", summary="Actionable steps to begin applying the knowledge."),
-        ][:num_chapters]
+        fallback_chapters = []
+        for i in range(1, num_chapters + 1):
+            fallback_chapter = self._generate_diverse_fallback_chapter(topic, i, num_chapters)
+            fallback_chapters.append(fallback_chapter)
         return BookPlan(title=title, chapters=fallback_chapters)
 
 
@@ -552,7 +985,7 @@ class WritingAgent:
                 f"{chapter_context}\n\n"
                 f"Chapter Title: {ch.title}\n"
                 f"Summary: {ch.summary}\n\n"
-                f"Write a 1000-1500 word chapter using <h2> headings for section titles. Avoid markdown. Keep academic quality."
+                f"Write a 1000-1500 word chapter. Start with the chapter title as a large <h1> heading, then use <h2> headings for section titles within the chapter. Avoid markdown. Keep academic quality."
             )
             messages = [
                 {"role": "system", "content": writer_system},

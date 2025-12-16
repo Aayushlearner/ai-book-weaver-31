@@ -115,7 +115,7 @@ class GroqProvider:
 			if topic_match:
 				topic = topic_match
 
-		chapter_content = f"""<h2>INTRODUCTION</h2>
+		chapter_content = f"""<h1>INTRODUCTION</h1>
 This chapter provides a comprehensive exploration of {topic}, examining its fundamental principles and practical applications. As we delve into this important subject, we will uncover the key concepts that make it relevant in today's rapidly evolving landscape.
 
 <h2>CORE CONCEPTS</h2>
