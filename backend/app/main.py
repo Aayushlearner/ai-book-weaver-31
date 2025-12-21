@@ -1,5 +1,5 @@
 from __future__ import annotations
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -119,44 +119,32 @@ async def generate(req: GenerateRequest):
 
 react_build_path = Path("dist")
 if react_build_path.exists():
+    # Serve static files (JS, CSS, images, etc.)
+    # app.mount("/static", StaticFiles(directory="dist/static"), name="static")
 
-    # 1️⃣ Serve /assets folder (images, fonts, etc.)
-    app.mount(
-        "/assets",
-        StaticFiles(directory=react_build_path / "assets", html=False),
-        name="assets"
-    )
+    # Serve other assets
+    app.mount("/assets", StaticFiles(directory="dist/assets", check_dir=False), name="assets")
 
-    # 2️⃣ Serve static JS/CSS if needed
-    if (react_build_path / "static").exists():
-        app.mount(
-            "/static",
-            StaticFiles(directory=react_build_path / "static", html=False),
-            name="static"
-        )
-
-    # 3️⃣ Serve specific files
     @app.get("/manifest.json")
-    async def manifest():
-        return FileResponse(react_build_path / "manifest.json")
+    async def get_manifest():
+        return FileResponse("dist/manifest.json")
 
     @app.get("/favicon.ico")
-    async def favicon():
-        return FileResponse(react_build_path / "favicon.ico")
+    async def get_favicon():
+        return FileResponse("dist/favicon.ico")
 
-    # 4️⃣ Catch-all route for React Router
+    # Catch-all route for React Router (must be last)
     @app.get("/{full_path:path}")
-    async def serve_frontend(full_path: str):
-        # Allow API endpoints to pass through
+    async def serve_react_app(request: Request, full_path: str):
+        # If it's an API call, let it fall through to 404
         if full_path.startswith("api/"):
             raise HTTPException(status_code=404, detail="API endpoint not found")
 
-        # Serve React SPA
-        return FileResponse(react_build_path / "index.html")
-
+        # For all other routes, serve the React app
+        return FileResponse("dist/index.html")
 else:
-    print("⚠️ dist folder not found. Run: npm run build")
+    print("⚠️  React build folder not found. Please run 'npm run build' first.")
 
     @app.get("/")
-    async def no_build():
-        return {"error": "React build not found. Run npm run build first."}
+    async def no_react_build():
+        return {"message": "React app not built. Run 'npm run build' first, then restart the server."}
