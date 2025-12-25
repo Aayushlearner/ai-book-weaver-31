@@ -23,7 +23,8 @@ const App = () => (
         <Sonner />
         <LoadingModal />
         <BrowserRouter>
-          <div className="min-h-screen bg-background">
+          <div className="min-h-screen bg-background relative">
+            <div className="ui-mirror-bg" />
             <Navigation />
             <Routes>
               <Route path="/" element={<Landing />} />

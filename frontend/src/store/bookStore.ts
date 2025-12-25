@@ -3,6 +3,7 @@ import { create } from 'zustand';
 export interface Chapter {
   id: string;
   title: string;
+  summary?: string;
   content?: string;
   subtopics?: Chapter[];
   isExpanded?: boolean;
@@ -22,7 +23,6 @@ export interface BookFormData {
 interface BookStore {
   formData: BookFormData;
   aiGeneratedToc: Chapter[];
-  userCreatedToc: Chapter[];
   mergedToc: Chapter[];
   generatedChapters: Chapter[];
   isLoading: boolean;
@@ -30,7 +30,6 @@ interface BookStore {
   
   setFormData: (data: Partial<BookFormData>) => void;
   setAiGeneratedToc: (toc: Chapter[]) => void;
-  setUserCreatedToc: (toc: Chapter[]) => void;
   setMergedToc: (toc: Chapter[]) => void;
   setGeneratedChapters: (chapters: Chapter[]) => void;
   setLoading: (loading: boolean, message?: string) => void;
@@ -50,7 +49,6 @@ const initialFormData: BookFormData = {
 export const useBookStore = create<BookStore>((set) => ({
   formData: initialFormData,
   aiGeneratedToc: [],
-  userCreatedToc: [],
   mergedToc: [],
   generatedChapters: [],
   isLoading: false,
@@ -60,8 +58,6 @@ export const useBookStore = create<BookStore>((set) => ({
     set((state) => ({ formData: { ...state.formData, ...data } })),
 
   setAiGeneratedToc: (toc) => set({ aiGeneratedToc: toc }),
-
-  setUserCreatedToc: (toc) => set({ userCreatedToc: toc }),
 
   setMergedToc: (toc) => set({ mergedToc: toc }),
 
@@ -74,7 +70,6 @@ export const useBookStore = create<BookStore>((set) => ({
     set({
       formData: initialFormData,
       aiGeneratedToc: [],
-      userCreatedToc: [],
       mergedToc: [],
       generatedChapters: [],
       isLoading: false,

@@ -39,6 +39,7 @@ export const MaterialButton = forwardRef<HTMLButtonElement, MaterialButtonProps>
         {...props}
       >
         <span className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-white/10" />
+        <span className="sheen" />
         {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
         {children}
       </button>

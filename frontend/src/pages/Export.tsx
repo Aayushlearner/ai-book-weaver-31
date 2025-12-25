@@ -73,7 +73,7 @@ export default function Export() {
         </div>
 
         {generatedChapters.length === 0 ? (
-          <div className="text-center py-12 rounded-2xl bg-card material-shadow-lg">
+          <div className="text-center py-12 rounded-2xl glass glass-border material-shadow-lg">
             <p className="text-muted-foreground mb-4">No book content available to export</p>
             <MaterialButton onClick={() => window.location.href = '/create'}>
               Create a Book
@@ -88,8 +88,9 @@ export default function Export() {
               return (
                 <div
                   key={option.format}
-                  className="group rounded-2xl bg-card border border-border material-shadow-lg hover:material-shadow-xl transition-smooth hover:-translate-y-1 overflow-hidden"
+                  className="group relative rounded-2xl glass glass-border border border-border material-shadow-lg hover:material-shadow-xl transition-smooth hover:-translate-y-1 overflow-hidden"
                 >
+                  <span className="sheen" />
                   <div className={`h-2 bg-gradient-to-r ${option.color}`} />
                   
                   <div className="p-8 space-y-6">

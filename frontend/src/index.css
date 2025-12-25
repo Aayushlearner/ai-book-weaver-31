@@ -8,53 +8,53 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    /* Enhanced minimalist palette */
-    --background: 0 0% 99%;
-    --foreground: 220 13% 18%;
+    /* Professional minimalist beige palette */
+    --background: 40 35% 98%;
+    --foreground: 222 15% 20%;
 
     --card: 0 0% 100%;
-    --card-foreground: 220 13% 18%;
+    --card-foreground: 222 15% 20%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 220 13% 18%;
+    --popover-foreground: 222 15% 20%;
 
-    /* Soft teal primary */
-    --primary: 180 30% 50%;
+    /* Warm beige-gold primary */
+    --primary: 35 65% 48%;
     --primary-foreground: 0 0% 100%;
-    --primary-light: 180 30% 60%;
-    --primary-dark: 180 30% 40%;
+    --primary-light: 35 60% 58%;
+    --primary-dark: 35 65% 40%;
 
-    /* Elegant secondary */
-    --secondary: 220 20% 96%;
-    --secondary-foreground: 220 13% 18%;
+    /* Elegant muted secondary */
+    --secondary: 40 25% 96%;
+    --secondary-foreground: 222 15% 20%;
 
-    --muted: 220 20% 96%;
-    --muted-foreground: 220 9% 46%;
+    --muted: 40 25% 96%;
+    --muted-foreground: 222 10% 45%;
 
-    --accent: 160 50% 60%;
+    --accent: 30 50% 60%;
     --accent-foreground: 0 0% 100%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
-    --ring: 180 30% 50%;
+    --border: 35 20% 88%;
+    --input: 35 20% 88%;
+    --ring: 35 65% 48%;
 
-    --radius: 0.5rem;
+    --radius: 0.75rem;
 
-    /* Subtle shadows */
+    /* Subtle shadows tuned for light beige */
     --shadow-sm: 0 1px 2px 0 hsl(220 13% 18% / 0.05);
     --shadow-md: 0 4px 6px -1px hsl(220 13% 18% / 0.1), 0 2px 4px -2px hsl(220 13% 18% / 0.1);
     --shadow-lg: 0 10px 15px -3px hsl(220 13% 18% / 0.1), 0 4px 6px -4px hsl(220 13% 18% / 0.1);
     --shadow-xl: 0 20px 25px -5px hsl(220 13% 18% / 0.1), 0 8px 10px -6px hsl(220 13% 18% / 0.1);
 
-    /* Elegant gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(180 30% 50%) 0%, hsl(180 30% 60%) 100%);
-    --gradient-accent: linear-gradient(135deg, hsl(180 30% 50%) 0%, hsl(160 50% 60%) 100%);
+    /* Elegant beige gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(35 65% 48%) 0%, hsl(35 60% 60%) 100%);
+    --gradient-accent: linear-gradient(135deg, hsl(35 60% 60%) 0%, hsl(25 45% 70%) 100%);
 
-    /* Subtle background gradient */
-    --background-gradient: linear-gradient(180deg, hsl(0 0% 99%) 0%, hsl(220 20% 97%) 100%);
+    /* Subtle background gradient (beige) */
+    --background-gradient: linear-gradient(180deg, hsl(40 35% 98%) 0%, hsl(35 30% 96%) 100%);
 
     /* Transitions */
     --transition-base: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
@@ -62,38 +62,38 @@ All colors MUST be HSL.
   }
 
   .dark {
-    --background: 220 13% 9%;
+    --background: 220 20% 8%;
     --foreground: 0 0% 98%;
 
-    --card: 220 13% 12%;
+    --card: 220 20% 10%;
     --card-foreground: 0 0% 98%;
 
-    --popover: 220 13% 12%;
+    --popover: 220 20% 10%;
     --popover-foreground: 0 0% 98%;
 
-    --primary: 180 30% 60%;
+    --primary: 35 70% 60%;
     --primary-foreground: 0 0% 100%;
-    --primary-light: 180 30% 70%;
-    --primary-dark: 180 30% 50%;
+    --primary-light: 35 70% 68%;
+    --primary-dark: 35 70% 50%;
 
-    --secondary: 220 13% 18%;
+    --secondary: 220 20% 14%;
     --secondary-foreground: 0 0% 98%;
 
-    --muted: 220 13% 18%;
+    --muted: 220 20% 14%;
     --muted-foreground: 220 9% 65%;
 
-    --accent: 160 50% 60%;
+    --accent: 30 55% 62%;
     --accent-foreground: 0 0% 100%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 220 13% 22%;
-    --input: 220 13% 22%;
-    --ring: 180 30% 60%;
+    --border: 220 20% 20%;
+    --input: 220 20% 20%;
+    --ring: 35 70% 60%;
 
-    /* Subtle background gradient */
-    --background-gradient: linear-gradient(180deg, hsl(220 13% 9%) 0%, hsl(220 13% 12%) 100%);
+    /* Subtle background gradient (dark) */
+    --background-gradient: linear-gradient(180deg, hsl(220 20% 8%) 0%, hsl(220 20% 12%) 100%);
   }
 }
 
@@ -114,6 +114,80 @@ All colors MUST be HSL.
 }
 
 @layer utilities {
+  /* Glass and mirror styling */
+  .glass {
+    background: hsl(var(--card) / 0.55);
+    backdrop-filter: blur(14px) saturate(1.25);
+    -webkit-backdrop-filter: blur(14px) saturate(1.25);
+    border: 1px solid hsl(var(--border) / 0.6);
+  }
+
+  .glass-border {
+    position: relative;
+  }
+  .glass-border::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(180deg, hsla(0 0% 100% / 0.35), hsla(0 0% 100% / 0.05));
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+
+  .ui-mirror-bg {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+  }
+  .ui-mirror-bg::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(800px 400px at -10% 10%, hsla(35, 50%, 85%, 0.6), transparent 60%),
+      radial-gradient(600px 300px at 110% 5%, hsla(25, 55%, 85%, 0.5), transparent 60%),
+      radial-gradient(1000px 800px at 50% 120%, hsla(0, 0%, 100%, 0.6), transparent 70%);
+    mix-blend-mode: normal;
+  }
+  .ui-mirror-bg::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      -10deg,
+      hsla(0,0%,100%,0.06) 0px,
+      hsla(0,0%,100%,0.06) 2px,
+      transparent 2px,
+      transparent 8px
+    );
+    opacity: 0.35;
+  }
+
+  /* Interactive sheen for buttons/cards */
+  .sheen {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(120deg,
+      transparent 20%,
+      hsla(0,0%,100%,0.18) 40%,
+      hsla(0,0%,100%,0.38) 50%,
+      hsla(0,0%,100%,0.18) 60%,
+      transparent 80%);
+    transform: translateX(-120%);
+    transition: transform 0.6s ease;
+    will-change: transform;
+    pointer-events: none;
+  }
+  .group:hover .sheen {
+    transform: translateX(120%);
+  }
+
   .material-shadow-sm {
     box-shadow: var(--shadow-sm);
   }

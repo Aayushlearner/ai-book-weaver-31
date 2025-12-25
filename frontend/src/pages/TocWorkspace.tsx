@@ -10,9 +10,7 @@ export default function TocWorkspace() {
   const navigate = useNavigate();
   const {
     aiGeneratedToc,
-    userCreatedToc,
     setAiGeneratedToc,
-    setUserCreatedToc,
     setMergedToc,
     setGeneratedChapters,
     setLoading,
@@ -20,18 +18,16 @@ export default function TocWorkspace() {
   } = useBookStore();
 
   const handleMergeAndContinue = async () => {
-    const merged = [...aiGeneratedToc, ...userCreatedToc];
-    
-    if (merged.length === 0) {
-      toast.error('Please create or generate at least one chapter');
+    if (aiGeneratedToc.length === 0) {
+      toast.error('Please generate at least one chapter');
       return;
     }
 
-    setMergedToc(merged);
+    setMergedToc(aiGeneratedToc);
     setLoading(true, 'Writing your book...');
 
     try {
-      const chapters = await writeBook(merged, formData);
+      const chapters = await writeBook(aiGeneratedToc, formData);
       setGeneratedChapters(chapters);
       toast.success('Book generated successfully!');
       navigate('/preview');
@@ -52,16 +48,11 @@ export default function TocWorkspace() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        <div className="max-w-3xl mx-auto mb-6">
           <TocPanel
             title="AI Generated TOC"
             chapters={aiGeneratedToc}
             onChaptersChange={setAiGeneratedToc}
-          />
-          <TocPanel
-            title="User Created TOC"
-            chapters={userCreatedToc}
-            onChaptersChange={setUserCreatedToc}
           />
         </div>
 

@@ -1140,7 +1140,20 @@ class WritingAgent:
                 f"Chapter Title: {ch.title}\n"
                 f"Summary: {ch.summary}\n"
                 f"Subtopics: {', '.join(ch.subtopics)}\n\n"
-                f"Write a 1000-1500 word chapter. Start with the chapter title as a large <h1> heading. Use the provided subtopics as <h3 style='font-size: 1.4em; font-weight: bold; margin-top: 2em; margin-bottom: 1em;'> section headings within the chapter, ensuring each subtopic becomes a distinct section with relevant content. Add TWO blank lines after each subtopic heading before starting the content paragraph for clear separation. Avoid markdown. Keep academic quality."
+                f"Write a 2000-3000 word chapter as clean, valid HTML (no markdown).\n"
+                f"FORMAT RULES (VERY IMPORTANT):\n"
+                f"- Start with EXACTLY one <h1> that is the chapter title.\n"
+                f"- Then write a short 2-3 paragraph introduction using <p> tags.\n"
+                f"- For EACH provided subtopic, create one <h2> section using the subtopic text as the heading.\n"
+                f"- Under each <h2>, write 2-4 <p> paragraphs that are concrete (not vague).\n"
+                f"- Under each <h2>, include one <ul> with 3-6 <li> bullet points for key takeaways / steps / checklists.\n"
+                f"- Include at least one real-world example per section (use a short scenario if needed).\n"
+                f"- End the chapter with a final <h2>Summary</h2> section with a <ul> of key points.\n"
+                f"CONTENT RULES:\n"
+                f"- Be specific and practical; avoid generic filler like 'this is important' without explaining how/why.\n"
+                f"- If a subtopic list is empty, create 4 sensible sections yourself (Introduction, Core Concepts, Practical Workflow, Common Pitfalls).\n"
+                f"- Wrap EVERY paragraph in <p>...</p>; never emit bare lines.\n"
+                f"- Do NOT use <br> for spacing; use <p> paragraphs and <ul>/<li> lists only.\n"
             )
             messages = [
                 {"role": "system", "content": writer_system},
@@ -1158,28 +1171,28 @@ def WRITER_SYSTEM():
     return (
         "You are an expert AI research writer tasked with generating full, well-structured, and human-like book chapters. "
         "You maintain clear flow, smooth transitions, and factual accuracy while using an academic yet engaging tone. "
-        "Do NOT use markdown formatting; use plain text and HTML tags for headings (<h2>)."
+        "Do NOT use markdown formatting; output clean HTML using <h1>, <h2>, <p>, <ul>, <li> only."
     )
 
 
 def WRITER_SYSTEM_FORMAL():
     return (
         "You are a distinguished scholarly writer tasked with generating comprehensive, methodically structured, and academically rigorous book chapters. "
-        "Use formal, authoritative tone, include citations where relevant (textual, not link format), and use <h2> headings only. Do not use markdown."
+        "Use formal, authoritative tone, include citations where relevant (textual, not link format). Output clean HTML using <h1>, <h2>, <p>, <ul>, <li> only. Do not use markdown."
     )
 
 
 def WRITER_SYSTEM_ACADEMIC():
     return (
         "You are a renowned academic writer tasked with generating erudite, research-oriented, and intellectually sophisticated book chapters. "
-        "Use academic tone, include theoretical depth, and format sections with <h2> headings only."
+        "Use academic tone, include theoretical depth. Output clean HTML using <h1>, <h2>, <p>, <ul>, <li> only."
     )
 
 
 def WRITER_SYSTEM_STORYTELLING():
     return (
         "You are a masterful narrative writer tasked with generating compelling, story-driven, and emotionally engaging book chapters. "
-        "Use vivid language, personal anecdotes (fictionalized examples allowed), and structure sections with <h2> headings."
+        "Use vivid language, personal anecdotes (fictionalized examples allowed). Output clean HTML using <h1>, <h2>, <p>, <ul>, <li> only."
     )
 
 
